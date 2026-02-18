@@ -97,7 +97,15 @@ def teacache_forward(
                             / self.previous_modulated_input.abs().mean()
                         ).cpu().item()
                     )
-                    if self.accumulated_rel_l1_distance < self.rel_l1_thresh:
+                    # Unified low/high: same value = fixed threshold; different = adaptive (first N steps high, rest low)
+                    thresh_low = getattr(self, "rel_l1_thresh_low", None)
+                    thresh_high = getattr(self, "rel_l1_thresh_high", None)
+                    if thresh_low is not None and thresh_high is not None:
+                        adaptive_steps = getattr(self, "adaptive_high_steps", 33)
+                        current_thresh = thresh_high if self.cnt <= adaptive_steps else thresh_low
+                    else:
+                        current_thresh = self.rel_l1_thresh
+                    if self.accumulated_rel_l1_distance < current_thresh:
                         should_calc = False
                     else:
                         should_calc = True
@@ -236,15 +244,29 @@ def run_generation(
     out_dir="outputs",
     enable_teacache=True,
     rel_l1_thresh=0.09,
+    rel_l1_thresh_low=None,
+    rel_l1_thresh_high=None,
+    adaptive_high_steps=33,
     record_delta_temni=False,
     save_file=None,
 ):
+    # Unified threshold: use low/high if both provided (fixed when equal, adaptive when different); else single rel_l1_thresh
+    if rel_l1_thresh_low is not None or rel_l1_thresh_high is not None:
+        low = rel_l1_thresh_low if rel_l1_thresh_low is not None else rel_l1_thresh_high
+        high = rel_l1_thresh_high if rel_l1_thresh_high is not None else rel_l1_thresh_low
+        thresh_low, thresh_high = low, high
+    else:
+        thresh_low = thresh_high = rel_l1_thresh
+
     pipe = MochiPipeline.from_pretrained("genmo/mochi-1-preview", force_zeros_for_empty_prompt=True)
     cls = pipe.transformer.__class__
     cls.enable_teacache = enable_teacache
     cls.cnt = 0
     cls.num_steps = num_inference_steps
-    cls.rel_l1_thresh = rel_l1_thresh
+    cls.rel_l1_thresh = rel_l1_thresh  # kept for backward compat when only this is used
+    cls.rel_l1_thresh_low = thresh_low
+    cls.rel_l1_thresh_high = thresh_high
+    cls.adaptive_high_steps = adaptive_high_steps
     cls.accumulated_rel_l1_distance = 0
     cls.previous_modulated_input = None
     cls.previous_residual = None
@@ -321,7 +343,10 @@ def main():
     parser.add_argument("--seed", type=int, default=0, help="Random seed")
     parser.add_argument("--num_steps", type=int, default=64, help="Number of inference steps")
     parser.add_argument("--delta_temni_plot", action="store_true", help="No caching; record and plot delta TEMNI over steps (like Wan2.1 baseline)")
-    parser.add_argument("--teacache_thresh", type=float, default=0.09, help="TeaCache rel_l1_thresh when not using --delta_temni_plot. 0.06 for ~1.5x, 0.09 for ~2.1x speedup")
+    parser.add_argument("--teacache_thresh", type=float, default=0.09, help="Single TeaCache threshold (fixed mode) when --teacache_thresh_low/high not set")
+    parser.add_argument("--teacache_thresh_low", type=float, default=None, help="Low threshold. With thresh_high: same value = fixed; different = adaptive (first N steps high, rest low)")
+    parser.add_argument("--teacache_thresh_high", type=float, default=None, help="High threshold. With thresh_low: same value = fixed; different = adaptive")
+    parser.add_argument("--teacache_adaptive_high_steps", type=int, default=33, help="When adaptive: number of steps (0-indexed) that use high threshold; rest use low. Default 33.")
     args = parser.parse_args()
 
     if args.save_file and not os.path.isabs(args.save_file) and not os.path.dirname(args.save_file):
@@ -334,6 +359,9 @@ def main():
         out_dir=args.out_dir,
         enable_teacache=not args.delta_temni_plot,
         rel_l1_thresh=args.teacache_thresh,
+        rel_l1_thresh_low=args.teacache_thresh_low,
+        rel_l1_thresh_high=args.teacache_thresh_high,
+        adaptive_high_steps=args.teacache_adaptive_high_steps,
         record_delta_temni=args.delta_temni_plot,
         save_file=args.save_file,
     )

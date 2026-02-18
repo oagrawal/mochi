@@ -14,10 +14,11 @@ Currently **one mode**: `mochi_baseline` (no TeaCache for Mochi). If TeaCache ad
 ## Steps (summary)
 
 1. Clone Mochi → copy `mochi_experiment` into repo → create `weights/`.
-2. Run Mochi in Docker (see `INSTRUCTIONS_MOCHI.md` for image and install).
+2. Run Mochi in Docker (see `INSTRUCTIONS_MOCHI.md` for image and install). Use **uv** for the venv inside the container.
 3. Download weights with `scripts/download_weights.py weights/`.
-4. Batch generate: `batch_generate_mochi.py --model_dir weights/ --cpu_offload --output-dir vbench_eval/videos` (optionally split with `--start-idx` / `--end-idx`).
-5. Run VBench in the HunyuanVideo eval container (same as Wan2.1): `run_vbench_eval.py` with `--video-dir` / `--save-dir` pointing to Mochi’s `vbench_eval`.
-6. Run `compare_results.py` with `--modes mochi_baseline` to produce the 3 CSVs.
+4. **(Optional)** Mini-experiment for TeaCache adaptive threshold: 2 prompts × 4 configs in the Mochi container, then fidelity in the HunyuanVideo eval container. See **Mini-experiment** in **INSTRUCTIONS_MOCHI.md**.
+5. Batch generate: `batch_generate_mochi.py --model_dir weights/ --cpu_offload --output-dir vbench_eval/videos` (optionally split with `--start-idx` / `--end-idx`).
+6. Run VBench in the HunyuanVideo eval container (same as Wan2.1): `run_vbench_eval.py` with `--video-dir` / `--save-dir` pointing to Mochi’s `vbench_eval`.
+7. Run `compare_results.py` with `--modes mochi_baseline` to produce the 3 CSVs.
 
 Full details: **INSTRUCTIONS_MOCHI.md**.
