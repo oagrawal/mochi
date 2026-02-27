@@ -1,0 +1,5 @@
+Mode,Speedup,Latency (s),VBench Total,PSNR,SSIM,LPIPS
+mochi_diff_baseline,1.00x,2113s,79.31%,—,—,—
+mochi_fixed_0.04,1.27x,1667s,79.65%,21.6232,0.7857,0.2253
+mochi_fixed_0.12,2.44x,865s,77.31%,17.5330,0.6977,0.3547
+mochi_adaptive_0.12_0.04,1.43x,1479s,79.60%,17.6734,0.6960,0.3456

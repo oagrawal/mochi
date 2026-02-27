@@ -1,0 +1,5 @@
+Mode,PSNR,SSIM,LPIPS,Latency
+mochi_diff_baseline,—,—,—,2113s
+mochi_fixed_0.04,21.6232,0.7857,0.2253,1667s
+mochi_fixed_0.12,17.5330,0.6977,0.3547,865s
+mochi_adaptive_0.12_0.04,17.6734,0.6960,0.3456,1479s

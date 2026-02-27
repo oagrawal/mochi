@@ -6,7 +6,8 @@ Generates videos for each prompt and each TeaCache mode:
   - mochi_diff_baseline      — no TeaCache (diffusers pipeline, baseline for fidelity)
   - mochi_fixed_0.04         — fixed TeaCache threshold 0.04
   - mochi_fixed_0.12         — fixed TeaCache threshold 0.12
-  - mochi_adaptive_0.12_0.04 — adaptive: first 33 steps high=0.12, rest low=0.04
+  - mochi_adaptive_0.12_0.04 — adaptive: first 34 steps high=0.12, rest low=0.04 (f34l30)
+  - mochi_adaptive_f34s14l16 — adaptive: first 34 high, steps 34–47 low, last 16 high (f34s14l16)
 
 Saves videos in VBench naming format: {prompt}-{seed}.mp4
 Supports:
@@ -72,6 +73,14 @@ MODES = [
         "thresh_low": 0.04,
         "thresh_high": 0.12,
     },
+    {
+        "name": "mochi_adaptive_f34s14l16",
+        "enable_teacache": True,
+        "thresh_low": 0.04,
+        "thresh_high": 0.12,
+        "adaptive_high_steps": 33,
+        "adaptive_back_to_high_step": 48,
+    },
 ]
 
 
@@ -125,8 +134,8 @@ def main():
         "--modes",
         type=str,
         default="all",
-        help="Comma-separated modes to run, or 'all'. "
-             "Options: mochi_diff_baseline,mochi_fixed_0.04,mochi_fixed_0.12,mochi_adaptive_0.12_0.04",
+        help=        "Comma-separated modes to run, or 'all'. "
+             "Options: mochi_diff_baseline,mochi_fixed_0.04,mochi_fixed_0.12,mochi_adaptive_0.12_0.04,mochi_adaptive_f34s14l16",
     )
     parser.add_argument(
         "--num-steps",
@@ -238,7 +247,7 @@ def main():
                 t0 = time.time()
                 if mode["enable_teacache"]:
                     # Fixed or adaptive TeaCache
-                    run_generation(
+                    gen_kwargs = dict(
                         prompt=prompt,
                         num_inference_steps=args.num_steps,
                         seed=seed,
@@ -246,9 +255,12 @@ def main():
                         enable_teacache=True,
                         rel_l1_thresh_low=mode["thresh_low"],
                         rel_l1_thresh_high=mode["thresh_high"],
-                        adaptive_high_steps=33,
                         save_file=video_path,
                     )
+                    gen_kwargs["adaptive_high_steps"] = mode.get("adaptive_high_steps", 33)
+                    if "adaptive_back_to_high_step" in mode:
+                        gen_kwargs["adaptive_back_to_high_step"] = mode["adaptive_back_to_high_step"]
+                    run_generation(**gen_kwargs)
                 else:
                     # Diffusers baseline: TeaCache disabled
                     run_generation(

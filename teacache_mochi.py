@@ -98,11 +98,18 @@ def teacache_forward(
                         ).cpu().item()
                     )
                     # Unified low/high: same value = fixed threshold; different = adaptive (first N steps high, rest low)
+                    # When adaptive_back_to_high_step is set (e.g. 48): f34s14l16 mode — high (0-33), low (34-47), high (48+)
                     thresh_low = getattr(self, "rel_l1_thresh_low", None)
                     thresh_high = getattr(self, "rel_l1_thresh_high", None)
                     if thresh_low is not None and thresh_high is not None:
                         adaptive_steps = getattr(self, "adaptive_high_steps", 33)
-                        current_thresh = thresh_high if self.cnt <= adaptive_steps else thresh_low
+                        back_to_high = getattr(self, "adaptive_back_to_high_step", None)
+                        if back_to_high is not None and self.cnt >= back_to_high:
+                            current_thresh = thresh_high
+                        elif self.cnt <= adaptive_steps:
+                            current_thresh = thresh_high
+                        else:
+                            current_thresh = thresh_low
                     else:
                         current_thresh = self.rel_l1_thresh
                     if self.accumulated_rel_l1_distance < current_thresh:
@@ -247,6 +254,7 @@ def run_generation(
     rel_l1_thresh_low=None,
     rel_l1_thresh_high=None,
     adaptive_high_steps=33,
+    adaptive_back_to_high_step=None,
     record_delta_temni=False,
     save_file=None,
 ):
@@ -267,6 +275,7 @@ def run_generation(
     cls.rel_l1_thresh_low = thresh_low
     cls.rel_l1_thresh_high = thresh_high
     cls.adaptive_high_steps = adaptive_high_steps
+    cls.adaptive_back_to_high_step = adaptive_back_to_high_step
     cls.accumulated_rel_l1_distance = 0
     cls.previous_modulated_input = None
     cls.previous_residual = None
@@ -347,6 +356,7 @@ def main():
     parser.add_argument("--teacache_thresh_low", type=float, default=None, help="Low threshold. With thresh_high: same value = fixed; different = adaptive (first N steps high, rest low)")
     parser.add_argument("--teacache_thresh_high", type=float, default=None, help="High threshold. With thresh_low: same value = fixed; different = adaptive")
     parser.add_argument("--teacache_adaptive_high_steps", type=int, default=33, help="When adaptive: number of steps (0-indexed) that use high threshold; rest use low. Default 33.")
+    parser.add_argument("--teacache_adaptive_back_to_high_step", type=int, default=None, help="When adaptive: step (0-indexed) at which to switch back to high threshold; None = keep low until end (f34l30 mode). Use 48 for f34s14l16.")
     args = parser.parse_args()
 
     if args.save_file and not os.path.isabs(args.save_file) and not os.path.dirname(args.save_file):
@@ -362,6 +372,7 @@ def main():
         rel_l1_thresh_low=args.teacache_thresh_low,
         rel_l1_thresh_high=args.teacache_thresh_high,
         adaptive_high_steps=args.teacache_adaptive_high_steps,
+        adaptive_back_to_high_step=args.teacache_adaptive_back_to_high_step,
         record_delta_temni=args.delta_temni_plot,
         save_file=args.save_file,
     )
